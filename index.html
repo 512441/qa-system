@@ -102,9 +102,18 @@ tr:hover{background:#f8f8ff}
     <div style="font-size:48px;margin-bottom:15px">📋</div>
     <h1>质量异常物料处理系统</h1>
     <h2>丽珠医药集团质量管理系统</h2>
-    <div style="font-size:12px;color:#999;margin-bottom:10px">👇 点击账号直接登录（密码均为 Livzon2026）</div>
-    <div class="users-grid" id="userGrid"></div>
-    <div style="margin-top:20px;font-size:11px;color:#ccc">云端版 · Supabase 数据库 · 飞书消息通知</div>
+    <div id="loginError" style="display:none;background:#ffebee;color:#c62828;padding:10px 15px;border-radius:10px;margin-bottom:15px;font-size:13px"></div>
+    <div class="form-group" style="text-align:left;margin-top:20px">
+      <label style="font-size:13px;color:#666;margin-bottom:6px">👤 用户名</label>
+      <input type="text" id="loginUsername" placeholder="请输入用户名" style="width:100%;padding:12px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+    </div>
+    <div class="form-group" style="text-align:left">
+      <label style="font-size:13px;color:#666;margin-bottom:6px">🔒 密码</label>
+      <input type="password" id="loginPassword" placeholder="请输入密码" style="width:100%;padding:12px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button onclick="doLogin()" style="width:100%;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:10px">登 录</button>
+    <div style="margin-top:25px;font-size:12px;color:#999">📌 测试账号：用户名任意，密码 Livzon2026</div>
+    <div style="margin-top:5px;font-size:11px;color:#ccc">云端版 · Supabase 数据库 · 飞书消息通知</div>
   </div>
 </div>
 
@@ -184,40 +193,72 @@ async function loadApps() {
 
 // ========== 登录 ==========
 function init() {
-  var grid = document.getElementById('userGrid');
-  var html = '';
-  for (var i = 0; i < USERS.length; i++) {
-    var u = USERS[i];
-    html += '<div class="user-btn" onclick="login(\'' + u.username + '\')"><div class="name">' + u.real_name + '</div><div class="role">' + u.role_name + '</div></div>';
+  // 检查是否已登录
+  var saved = localStorage.getItem('qa_user');
+  if (saved) {
+    try {
+      var user = JSON.parse(saved);
+      currentUser = user;
+      document.getElementById('loginPage').classList.add('hidden');
+      document.getElementById('mainPage').classList.remove('hidden');
+      document.getElementById('currentUserInfo').textContent = user.real_name + '（' + user.role_name + '）';
+      loadApps().then(function() { showPage('dashboard'); });
+      return;
+    } catch(e) {}
   }
-  grid.innerHTML = html;
+  // 聚焦用户名输入框
+  document.getElementById('loginUsername').focus();
 }
 init();
 
-async function login(username) {
+function doLogin() {
+  var username = document.getElementById('loginUsername').value.trim();
+  var password = document.getElementById('loginPassword').value;
+  var errorEl = document.getElementById('loginError');
+  
+  if (!username) {
+    errorEl.textContent = '请输入用户名';
+    errorEl.style.display = 'block';
+    document.getElementById('loginUsername').focus();
+    return;
+  }
+  if (!password) {
+    errorEl.textContent = '请输入密码';
+    errorEl.style.display = 'block';
+    document.getElementById('loginPassword').focus();
+    return;
+  }
+  
+  // 验证账号密码
   var user = null;
   for (var i = 0; i < USERS.length; i++) {
-    if (USERS[i].username === username) {
+    if (USERS[i].username === username && USERS[i].password === password) {
       user = USERS[i];
       break;
     }
   }
-  if (!user) return;
   
-  try {
-    currentUser = user;
-    localStorage.setItem('qa_user', JSON.stringify(user));
-    
-    document.getElementById('loginPage').classList.add('hidden');
-    document.getElementById('mainPage').classList.remove('hidden');
-    document.getElementById('currentUserInfo').textContent = user.real_name + '（' + user.role_name + '）';
-    
-    await loadApps();
+  if (!user) {
+    errorEl.textContent = '用户名或密码错误';
+    errorEl.style.display = 'block';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPassword').focus();
+    return;
+  }
+  
+  // 登录成功
+  errorEl.style.display = 'none';
+  currentUser = user;
+  localStorage.setItem('qa_user', JSON.stringify(user));
+  
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('mainPage').classList.remove('hidden');
+  document.getElementById('currentUserInfo').textContent = user.real_name + '（' + user.role_name + '）';
+  
+  loadApps().then(function() {
     showPage('dashboard');
     toast('登录成功', 'success');
-  } catch(e) {
-    toast('登录失败：' + e.message, 'error');
-  }
+  });
 }
 
 function logout() {
@@ -225,6 +266,9 @@ function logout() {
   localStorage.removeItem('qa_user');
   document.getElementById('mainPage').classList.add('hidden');
   document.getElementById('loginPage').classList.remove('hidden');
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').style.display = 'none';
 }
 
 // ========== 页面切换 ==========
