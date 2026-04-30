@@ -7,7 +7,7 @@ window.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // 账号列表
 const accounts = [
-  { name: '叶焕柱', role: 'admin' },
+  { name: '叶环珠', role: 'admin' },
   { name: '测试用户', role: 'user' }
 ];
 
