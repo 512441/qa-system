@@ -140,7 +140,7 @@ const supabaseUrl = 'https://mcjiaozdiihisthjzqye.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jamlhb3pkaWloaXN0aGp6cXllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjYxOTIsImV4cCI6MjA5MzA0MjE5Mn0.9GRLhtAHlQS_JVnGqLNvJYoBwpr6RHvAKB9sAsiNOv0';
 
 const { createClient } = window.supabase;
-const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 const USERS = [
   {id:'U001',username:'yehuanzhu',password:'Livzon2026',real_name:'叶环珠',role:'manufacturing_supervisor',role_name:'制造部主管(申请人)',department:'非无菌制剂制造部'},
