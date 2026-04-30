@@ -1,4 +1,4 @@
-// 注意：Supabase客户端已在index.html中初始化，这里不再重复初始化
+// 注意：Supabase客户端已在index.html中初始化
 
 // 账号列表
 const accounts = [
