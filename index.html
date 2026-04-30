@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>质量异常物料处理系统 - 丽珠集团</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Microsoft YaHei',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh}
@@ -134,9 +135,12 @@ tr:hover{background:#f8f8ff}
 <div id="toast"></div>
 
 <script>
-// ========== Supabase 配置 ==========
-const SUPABASE_URL = 'https://mcjiaozdiihisthjzqye.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jamlhb3pkaWloaXN0aGp6cXllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjYxOTIsImV4cCI6MjA5MzA0MjE5Mn0.9GRLhtAHlQS_JVnGqLNvJYoBwpr6RHvAKB9sAsiNOv0';
+// ========== Supabase 初始化 ==========
+const supabaseUrl = 'https://mcjiaozdiihisthjzqye.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jamlhb3pkaWloaXN0aGp6cXllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjYxOTIsImV4cCI6MjA5MzA0MjE5Mn0.9GRLhtAHlQS_JVnGqLNvJYoBwpr6RHvAKB9sAsiNOv0';
+
+const { createClient } = window.supabase;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const USERS = [
   {id:'U001',username:'yehuanzhu',password:'Livzon2026',real_name:'叶环珠',role:'manufacturing_supervisor',role_name:'制造部主管(申请人)',department:'非无菌制剂制造部'},
@@ -159,70 +163,54 @@ const SOURCES = ['采购入库','退料','调拨','留样','退货复验'];
 
 let currentUser = null;
 let allApps = [];
-let token = localStorage.getItem('qa_token');
 
-// ========== Supabase API ==========
-async function supabaseApi(endpoint, options = {}) {
-  const url = SUPABASE_URL + '/rest/v1/' + endpoint;
-  const headers = {
-    'apikey': SUPABASE_ANON_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
-    ...options.headers
-  };
-  
-  const fetchOptions = {
-    method: options.method || 'GET',
-    headers: headers
-  };
-  
-  if (options.body) {
-    fetchOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
-  }
-  
-  const resp = await fetch(url, fetchOptions);
-  
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.message || JSON.stringify(data));
-  return data;
+// ========== 工具函数 ==========
+function toast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(function() { t.className = 'toast'; }, 2500);
 }
 
 async function loadApps() {
   try {
-    allApps = await supabaseApi('applications?order=created_at.desc');
+    var result = await supabase.from('applications').select('*').order('created_at', { ascending: false });
+    if (result.error) throw result.error;
+    allApps = result.data || [];
   } catch(e) {
     console.error('加载申请失败:', e);
     allApps = [];
   }
 }
 
-function toast(msg, type='info') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast show ${type}`;
-  setTimeout(() => t.className = 'toast', 2500);
-}
-
 // ========== 登录 ==========
 function init() {
-  const grid = document.getElementById('userGrid');
-  grid.innerHTML = USERS.map(u => `<div class="user-btn" onclick="login('${u.username}')"><div class="name">${u.real_name}</div><div class="role">${u.role_name}</div></div>`).join('');
+  var grid = document.getElementById('userGrid');
+  var html = '';
+  for (var i = 0; i < USERS.length; i++) {
+    var u = USERS[i];
+    html += '<div class="user-btn" onclick="login(\'' + u.username + '\')"><div class="name">' + u.real_name + '</div><div class="role">' + u.role_name + '</div></div>';
+  }
+  grid.innerHTML = html;
 }
 init();
 
 async function login(username) {
-  const user = USERS.find(u => u.username === username);
+  var user = null;
+  for (var i = 0; i < USERS.length; i++) {
+    if (USERS[i].username === username) {
+      user = USERS[i];
+      break;
+    }
+  }
   if (!user) return;
   
   try {
     currentUser = user;
-    token = 'token_' + username;
-    localStorage.setItem('qa_token', token);
     localStorage.setItem('qa_user', JSON.stringify(user));
     
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('mainPage').classList.remove('hidden');
-    document.getElementById('currentUserInfo').textContent = `${user.real_name}（${user.role_name}）`;
+    document.getElementById('currentUserInfo').textContent = user.real_name + '（' + user.role_name + '）';
     
     await loadApps();
     showPage('dashboard');
@@ -233,8 +221,7 @@ async function login(username) {
 }
 
 function logout() {
-  currentUser = null; token = null;
-  localStorage.removeItem('qa_token');
+  currentUser = null;
   localStorage.removeItem('qa_user');
   document.getElementById('mainPage').classList.add('hidden');
   document.getElementById('loginPage').classList.remove('hidden');
@@ -242,333 +229,369 @@ function logout() {
 
 // ========== 页面切换 ==========
 function showPage(page) {
-  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
-  const c = document.getElementById('content');
-  if (page==='dashboard') renderDashboard(c);
-  else if (page==='apply') renderApply(c);
-  else if (page==='my') renderMyApps(c);
-  else if (page==='pending') renderPending(c);
-  else if (page==='all') renderAllApps(c);
-  else if (page==='ledger') renderLedger(c);
+  var items = document.querySelectorAll('.sidebar-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('active', items[i].dataset.page === page);
+  }
+  var c = document.getElementById('content');
+  if (page === 'dashboard') renderDashboard(c);
+  else if (page === 'apply') renderApply(c);
+  else if (page === 'my') renderMyApps(c);
+  else if (page === 'pending') renderPending(c);
+  else if (page === 'all') renderAllApps(c);
+  else if (page === 'ledger') renderLedger(c);
 }
 
 // ========== 仪表盘 ==========
 function renderDashboard(el) {
-  const now = new Date();
-  const thisMonth = allApps.filter(a => new Date(a.created_at) <= new Date() && new Date(a.created_at).getMonth() === now.getMonth() && new Date(a.created_at).getFullYear() === now.getFullYear());
-  const completed = allApps.filter(a => a.status==='已完成');
-  const pending = allApps.filter(a => a.status!=='已完成');
-  const supStats={}, typeStats={};
-  allApps.forEach(a => {
-    supStats[a.supplier_name||'未知']=(supStats[a.supplier_name||'未知']||0)+1;
-    typeStats[a.abnormal_type||'其他异常']=(typeStats[a.abnormal_type||'其他异常']||0)+1;
-  });
-  const topSup = Object.entries(supStats).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const topTypes = Object.entries(typeStats).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  var now = new Date();
+  var thisMonth = [];
+  for (var i = 0; i < allApps.length; i++) {
+    var a = allApps[i];
+    var d = new Date(a.created_at);
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+      thisMonth.push(a);
+    }
+  }
+  var completed = allApps.filter(function(a) { return a.status === '已完成'; });
+  var pending = allApps.filter(function(a) { return a.status !== '已完成'; });
+  var supStats = {}, typeStats = {};
+  for (var i = 0; i < allApps.length; i++) {
+    var a = allApps[i];
+    var sup = a.supplier_name || '未知';
+    var type = a.abnormal_type || '其他异常';
+    supStats[sup] = (supStats[sup] || 0) + 1;
+    typeStats[type] = (typeStats[type] || 0) + 1;
+  }
+  var topSup = Object.entries(supStats).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
+  var topTypes = Object.entries(typeStats).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
 
-  el.innerHTML = `
-    <div class="page-title">仪表盘</div>
-    <div class="stats-grid">
-      <div class="stat-card"><div class="num">${thisMonth.length}</div><div class="label">本月新增</div></div>
-      <div class="stat-card green"><div class="num">${completed.length}</div><div class="label">已完成</div></div>
-      <div class="stat-card orange"><div class="num">${pending.length}</div><div class="label">处理中</div></div>
-      <div class="stat-card"><div class="num">${allApps.length}</div><div class="label">累计总数</div></div>
-    </div>
-    <div class="form-row">
-      <div class="card"><div class="card-header"><div class="card-title">🏢 供应商异常排名</div></div>
-        ${topSup.length ? topSup.map(([s,c],i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0"><span style="font-weight:bold;color:#667eea;width:20px">${i+1}</span><span style="flex:1;font-size:14px">${s}</span><span style="background:#f0f0ff;color:#667eea;padding:2px 10px;border-radius:10px;font-size:13px">${c}次</span></div>`).join(''):'<div style="color:#999;text-align:center;padding:20px">暂无数据</div>'}
-      </div>
-      <div class="card"><div class="card-header"><div class="card-title">⚠️ 异常类型分布</div></div>
-        ${topTypes.length ? topTypes.map(([t,c],i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0"><span style="font-weight:bold;color:#667eea;width:20px">${i+1}</span><span style="flex:1;font-size:14px">${t}</span><span style="background:#fff3e0;color:#e65100;padding:2px 10px;border-radius:10px;font-size:13px">${c}次</span></div>`).join(''):'<div style="color:#999;text-align:center;padding:20px">暂无数据</div>'}
-      </div>
-    </div>`;
+  var supHtml = topSup.length ? topSup.map(function(item, i) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0"><span style="font-weight:bold;color:#667eea;width:20px">' + (i+1) + '</span><span style="flex:1;font-size:14px">' + item[0] + '</span><span style="background:#f0f0ff;color:#667eea;padding:2px 10px;border-radius:10px;font-size:13px">' + item[1] + '次</span></div>';
+  }).join('') : '<div style="color:#999;text-align:center;padding:20px">暂无数据</div>';
+  
+  var typeHtml = topTypes.length ? topTypes.map(function(item, i) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0"><span style="font-weight:bold;color:#667eea;width:20px">' + (i+1) + '</span><span style="flex:1;font-size:14px">' + item[0] + '</span><span style="background:#fff3e0;color:#e65100;padding:2px 10px;border-radius:10px;font-size:13px">' + item[1] + '次</span></div>';
+  }).join('') : '<div style="color:#999;text-align:center;padding:20px">暂无数据</div>';
+
+  el.innerHTML = '<div class="page-title">仪表盘</div>' +
+    '<div class="stats-grid">' +
+      '<div class="stat-card"><div class="num">' + thisMonth.length + '</div><div class="label">本月新增</div></div>' +
+      '<div class="stat-card green"><div class="num">' + completed.length + '</div><div class="label">已完成</div></div>' +
+      '<div class="stat-card orange"><div class="num">' + pending.length + '</div><div class="label">处理中</div></div>' +
+      '<div class="stat-card"><div class="num">' + allApps.length + '</div><div class="label">累计总数</div></div>' +
+    '</div>' +
+    '<div class="form-row">' +
+      '<div class="card"><div class="card-header"><div class="card-title">🏢 供应商异常排名</div></div>' + supHtml + '</div>' +
+      '<div class="card"><div class="card-header"><div class="card-title">⚠️ 异常类型分布</div></div>' + typeHtml + '</div>' +
+    '</div>';
 }
 
 // ========== 新建申请 ==========
 function renderApply(el) {
-  el.innerHTML = `
-    <div class="page-title">📝 新建质量异常物料申请</div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">异常物料信息</div></div>
-      <div class="form-row">
-        <div class="form-group"><label>品名 *</label><input id="f_product" placeholder="请输入物料品名"></div>
-        <div class="form-group"><label>规格</label><input id="f_spec" placeholder="请输入规格"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>厂内批号</label><input id="f_factory_batch" placeholder="请输入厂内批号"></div>
-        <div class="form-group"><label>供应商批号</label><input id="f_supplier_batch" placeholder="请输入供应商批号"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>供应商名称 *</label><input id="f_supplier" placeholder="请输入供应商名称"></div>
-        <div class="form-group"><label>数量</label><input id="f_quantity" placeholder="如：100盒/5kg"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>来源</label><select id="f_source"><option value="">请选择来源</option>${SOURCES.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
-        <div class="form-group"><label>检验报告单号</label><input id="f_report" placeholder="请输入检验报告单号"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>异常类型 *</label><select id="f_abnormal_type"><option value="">请选择异常类型</option>${ABNORMAL_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
-        <div class="form-group"><label>偏差编号（自动生成）</label><input value="提交后自动生成" readonly style="background:#f5f5f5;color:#999"></div>
-      </div>
-      <div class="form-group"><label>不合格依据</label><textarea id="f_basis" placeholder="请输入不合格依据（如：检验标准、药典规定、企业标准等）"></textarea></div>
-      <div class="form-group"><label>不合格情况描述 *</label><textarea id="f_desc" placeholder="请详细描述异常情况，包括发现时间、地点、具体情况等" style="min-height:120px"></textarea></div>
-      <button class="btn-primary" onclick="submitApplication()">提交申请</button>
-    </div>`;
+  var sourceOptions = '<option value="">请选择来源</option>';
+  for (var i = 0; i < SOURCES.length; i++) {
+    sourceOptions += '<option value="' + SOURCES[i] + '">' + SOURCES[i] + '</option>';
+  }
+  var typeOptions = '<option value="">请选择异常类型</option>';
+  for (var i = 0; i < ABNORMAL_TYPES.length; i++) {
+    typeOptions += '<option value="' + ABNORMAL_TYPES[i] + '">' + ABNORMAL_TYPES[i] + '</option>';
+  }
+  
+  el.innerHTML = '<div class="page-title">📝 新建质量异常物料申请</div>' +
+    '<div class="card">' +
+      '<div class="card-header"><div class="card-title">异常物料信息</div></div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label>品名 *</label><input id="f_product" placeholder="请输入物料品名"></div>' +
+        '<div class="form-group"><label>规格</label><input id="f_spec" placeholder="请输入规格"></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label>厂内批号</label><input id="f_factory_batch" placeholder="请输入厂内批号"></div>' +
+        '<div class="form-group"><label>供应商批号</label><input id="f_supplier_batch" placeholder="请输入供应商批号"></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label>供应商名称 *</label><input id="f_supplier" placeholder="请输入供应商名称"></div>' +
+        '<div class="form-group"><label>数量</label><input id="f_quantity" placeholder="如：100盒/5kg"></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label>来源</label><select id="f_source">' + sourceOptions + '</select></div>' +
+        '<div class="form-group"><label>检验报告单号</label><input id="f_report" placeholder="请输入检验报告单号"></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label>异常类型 *</label><select id="f_abnormal_type">' + typeOptions + '</select></div>' +
+        '<div class="form-group"><label>偏差编号（自动生成）</label><input value="提交后自动生成" readonly style="background:#f5f5f5;color:#999"></div>' +
+      '</div>' +
+      '<div class="form-group"><label>不合格依据</label><textarea id="f_basis" placeholder="请输入不合格依据（如：检验标准、药典规定、企业标准等）"></textarea></div>' +
+      '<div class="form-group"><label>不合格情况描述 *</label><textarea id="f_desc" placeholder="请详细描述异常情况，包括发现时间、地点、具体情况等" style="min-height:120px"></textarea></div>' +
+      '<button class="btn-primary" onclick="submitApplication()">提交申请</button>' +
+    '</div>';
 }
 
 async function submitApplication() {
-  const product = document.getElementById('f_product').value.trim();
-  const supplier = document.getElementById('f_supplier').value.trim();
-  const abnormal_type = document.getElementById('f_abnormal_type').value;
-  const desc = document.getElementById('f_desc').value.trim();
+  var product = document.getElementById('f_product').value.trim();
+  var supplier = document.getElementById('f_supplier').value.trim();
+  var abnormal_type = document.getElementById('f_abnormal_type').value;
+  var desc = document.getElementById('f_desc').value.trim();
   if (!product) return toast('请填写品名', 'error');
   if (!supplier) return toast('请填写供应商名称', 'error');
   if (!abnormal_type) return toast('请选择异常类型', 'error');
   if (!desc) return toast('请填写异常情况描述', 'error');
 
   try {
-    const now = new Date().toISOString();
-    const seq = allApps.length + 1;
-    const app_no = `ZYWL-${now.slice(2,4)}${now.slice(5,7)}-${String(seq).padStart(3,'0')}`;
-    const dev_no = `PW${now.slice(2,4)}${now.slice(5,7)}-${String(seq).padStart(4,'0')}`;
+    var now = new Date().toISOString();
+    var seq = allApps.length + 1;
+    var app_no = 'ZYWL-' + now.slice(2,4) + now.slice(5,7) + '-' + String(seq).padStart(3,'0');
+    var dev_no = 'PW' + now.slice(2,4) + now.slice(5,7) + '-' + String(seq).padStart(4,'0');
     
-    const result = await supabaseApi('applications', {
-      method: 'POST',
-      headers: {' Prefer': 'return=representation' },
-      body: JSON.stringify({
-        app_no, deviation_no: dev_no,
-        status: '待部门负责人意见', current_node: 0,
-        applicant_name: currentUser.real_name,
-        department: currentUser.department,
-        product_name: product,
-        spec: document.getElementById('f_spec').value.trim(),
-        factory_batch: document.getElementById('f_factory_batch').value.trim(),
-        supplier_batch: document.getElementById('f_supplier_batch').value.trim(),
-        supplier_name: supplier,
-        source: document.getElementById('f_source').value,
-        quantity: document.getElementById('f_quantity').value.trim(),
-        inspection_report_no: document.getElementById('f_report').value.trim(),
-        abnormal_type: abnormal_type,
-        unqualified_basis: document.getElementById('f_basis').value.trim(),
-        abnormal_desc: desc,
-        created_at: now, updated_at: now
-      })
-    });
+    var data = {
+      app_no: app_no,
+      deviation_no: dev_no,
+      status: '待部门负责人意见',
+      current_node: 0,
+      applicant_name: currentUser.real_name,
+      department: currentUser.department,
+      product_name: product,
+      spec: document.getElementById('f_spec').value.trim(),
+      factory_batch: document.getElementById('f_factory_batch').value.trim(),
+      supplier_batch: document.getElementById('f_supplier_batch').value.trim(),
+      supplier_name: supplier,
+      source: document.getElementById('f_source').value,
+      quantity: document.getElementById('f_quantity').value.trim(),
+      inspection_report_no: document.getElementById('f_report').value.trim(),
+      abnormal_type: abnormal_type,
+      unqualified_basis: document.getElementById('f_basis').value.trim(),
+      abnormal_desc: desc,
+      created_at: now,
+      updated_at: now
+    };
+    
+    var result = await supabase.from('applications').insert([data]).select();
+    if (result.error) throw result.error;
     
     toast('申请提交成功！单号：' + app_no, 'success');
     await loadApps();
-    setTimeout(() => showPage('my'), 1500);
+    setTimeout(function() { showPage('my'); }, 1500);
   } catch(e) {
-    toast('提交失败：' + e.message, 'error');
+    toast('提交失败：' + (e.message || JSON.stringify(e)), 'error');
   }
 }
 
 // ========== 申请列表 ==========
-function renderAppList(el, title, apps, showActions) {
-  if (!apps.length) { el.innerHTML = `<div class="page-title">${title}</div><div class="empty-state"><div class="icon">📋</div><div>暂无申请记录</div></div>`; return; }
-  el.innerHTML = `
-    <div class="page-title">${title}（${apps.length}条）</div>
-    <div class="card" style="overflow-x:auto;padding:15px">
-      <table>
-        <thead><tr><th>申请单号</th><th>品名</th><th>供应商</th><th>异常类型</th><th>日期</th><th>状态</th><th>当前节点</th><th>操作</th></tr></thead>
-        <tbody>
-          ${apps.map(a => {
-            const isDone = a.status==='已完成';
-            const nodeName = isDone ? '已完成' : (APPROVAL_NODES[a.current_node]?.name || '处理中');
-            return `<tr>
-              <td><strong>${a.app_no || '-'}</strong></td>
-              <td>${a.product_name || '-'}</td>
-              <td>${a.supplier_name || '-'}</td>
-              <td><span class="abnormal-tag">${a.abnormal_type || '其他异常'}</span></td>
-              <td>${a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : '-'}</td>
-              <td><span class="badge badge-${isDone?'approved':'pending'}">${a.status || '处理中'}</span></td>
-              <td><span class="node-tag ${isDone?'done':'current'}">${nodeName}</span></td>
-              <td>
-                <button style="padding:5px 12px;font-size:12px;background:#e0e0e0;border:none;border-radius:6px;cursor:pointer" onclick="viewDetail(${a.id})">查看</button>
-                ${showActions && canApprove(a) ? `<button style="padding:5px 12px;font-size:12px;background:linear-gradient(135deg,#11998e,#38ef7d);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-left:5px" onclick="openApprove(${a.id})">审批</button>` : ''}
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>`;
-}
-
 function canApprove(app) {
-  const map = {manufacturing_head:0,supply_chain:1,qa_div:2,qa_head:3,quality_head:4};
+  var map = {manufacturing_head:0, supply_chain:1, qa_div:2, qa_head:3, quality_head:4};
   return map[currentUser.role] === app.current_node && app.status !== '已完成';
 }
 
+function renderAppList(el, title, apps, showActions) {
+  if (!apps.length) {
+    el.innerHTML = '<div class="page-title">' + title + '</div><div class="empty-state"><div class="icon">📋</div><div>暂无申请记录</div></div>';
+    return;
+  }
+  
+  var rows = '';
+  for (var i = 0; i < apps.length; i++) {
+    var a = apps[i];
+    var isDone = a.status === '已完成';
+    var nodeName = isDone ? '已完成' : (APPROVAL_NODES[a.current_node] ? APPROVAL_NODES[a.current_node].name : '处理中');
+    var approveBtn = showActions && canApprove(a) ? 
+      '<button style="padding:5px 12px;font-size:12px;background:linear-gradient(135deg,#11998e,#38ef7d);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-left:5px" onclick="openApprove(' + a.id + ')">审批</button>' : '';
+    
+    rows += '<tr>' +
+      '<td><strong>' + (a.app_no || '-') + '</strong></td>' +
+      '<td>' + (a.product_name || '-') + '</td>' +
+      '<td>' + (a.supplier_name || '-') + '</td>' +
+      '<td><span class="abnormal-tag">' + (a.abnormal_type || '其他异常') + '</span></td>' +
+      '<td>' + (a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : '-') + '</td>' +
+      '<td><span class="badge badge-' + (isDone ? 'approved' : 'pending') + '">' + (a.status || '处理中') + '</span></td>' +
+      '<td><span class="node-tag ' + (isDone ? 'done' : 'current') + '">' + nodeName + '</span></td>' +
+      '<td><button style="padding:5px 12px;font-size:12px;background:#e0e0e0;border:none;border-radius:6px;cursor:pointer" onclick="viewDetail(' + a.id + ')">查看</button>' + approveBtn + '</td>' +
+    '</tr>';
+  }
+  
+  el.innerHTML = '<div class="page-title">' + title + '（' + apps.length + '条）</div>' +
+    '<div class="card" style="overflow-x:auto;padding:15px">' +
+      '<table><thead><tr><th>申请单号</th><th>品名</th><th>供应商</th><th>异常类型</th><th>日期</th><th>状态</th><th>当前节点</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>';
+}
+
 function renderMyApps(el) {
-  const my = allApps.filter(a => a.applicant_name===currentUser.real_name || a.department===currentUser.department);
+  var my = allApps.filter(function(a) { return a.applicant_name === currentUser.real_name || a.department === currentUser.department; });
   renderAppList(el, '📂 我的申请', my, true);
 }
 
 function renderPending(el) {
-  const map = {manufacturing_head:0,supply_chain:1,qa_div:2,qa_head:3,quality_head:4};
-  const myNode = map[currentUser.role];
-  const p = myNode !== undefined ? allApps.filter(a => a.current_node===myNode && a.status!=='已完成') : [];
-  renderAppList(el, `⏳ 待我审批（${p.length}）`, p, true);
+  var map = {manufacturing_head:0, supply_chain:1, qa_div:2, qa_head:3, quality_head:4};
+  var myNode = map[currentUser.role];
+  var p = myNode !== undefined ? allApps.filter(function(a) { return a.current_node === myNode && a.status !== '已完成'; }) : [];
+  renderAppList(el, '⏳ 待我审批（' + p.length + '）', p, true);
 }
 
 function renderAllApps(el) { renderAppList(el, '📋 全部申请', allApps, true); }
 
 function renderLedger(el) {
-  const apps = [...allApps].sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
-  if (!apps.length) { el.innerHTML = `<div class="page-title">📖 质量异常物料台账</div><div class="empty-state"><div class="icon">📋</div><div>暂无台账记录</div></div>`; return; }
-  el.innerHTML = `
-    <div class="page-title">📖 质量异常物料台账（共${apps.length}条）</div>
-    <div class="card" style="overflow-x:auto;padding:15px">
-      <table>
-        <thead><tr><th>申请单号</th><th>偏差编号</th><th>品名</th><th>供应商</th><th>异常类型</th><th>申请日期</th><th>状态</th><th>当前节点</th><th>操作</th></tr></thead>
-        <tbody>
-          ${apps.map(a => `<tr>
-            <td><strong>${a.app_no || '-'}</strong></td>
-            <td>${a.deviation_no || '-'}</td>
-            <td>${a.product_name || '-'}</td>
-            <td>${a.supplier_name || '-'}</td>
-            <td><span class="abnormal-tag">${a.abnormal_type || '其他异常'}</span></td>
-            <td>${a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : '-'}</td>
-            <td><span class="badge badge-${a.status==='已完成'?'approved':'pending'}">${a.status || '处理中'}</span></td>
-            <td>${a.status==='已完成'?'已完成':(APPROVAL_NODES[a.current_node]?.name||'处理中')}</td>
-            <td><button style="padding:5px 12px;font-size:12px;background:#e0e0e0;border:none;border-radius:6px;cursor:pointer" onclick="viewDetail(${a.id})">查看</button></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
+  var apps = allApps.slice().sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+  if (!apps.length) {
+    el.innerHTML = '<div class="page-title">📖 质量异常物料台账</div><div class="empty-state"><div class="icon">📋</div><div>暂无台账记录</div></div>';
+    return;
+  }
+  
+  var rows = '';
+  for (var i = 0; i < apps.length; i++) {
+    var a = apps[i];
+    rows += '<tr>' +
+      '<td><strong>' + (a.app_no || '-') + '</strong></td>' +
+      '<td>' + (a.deviation_no || '-') + '</td>' +
+      '<td>' + (a.product_name || '-') + '</td>' +
+      '<td>' + (a.supplier_name || '-') + '</td>' +
+      '<td><span class="abnormal-tag">' + (a.abnormal_type || '其他异常') + '</span></td>' +
+      '<td>' + (a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : '-') + '</td>' +
+      '<td><span class="badge badge-' + (a.status === '已完成' ? 'approved' : 'pending') + '">' + (a.status || '处理中') + '</span></td>' +
+      '<td>' + (a.status === '已完成' ? '已完成' : (APPROVAL_NODES[a.current_node] ? APPROVAL_NODES[a.current_node].name : '处理中')) + '</td>' +
+      '<td><button style="padding:5px 12px;font-size:12px;background:#e0e0e0;border:none;border-radius:6px;cursor:pointer" onclick="viewDetail(' + a.id + ')">查看</button></td>' +
+    '</tr>';
+  }
+  
+  el.innerHTML = '<div class="page-title">📖 质量异常物料台账（共' + apps.length + '条）</div>' +
+    '<div class="card" style="overflow-x:auto;padding:15px">' +
+      '<table><thead><tr><th>申请单号</th><th>偏差编号</th><th>品名</th><th>供应商</th><th>异常类型</th><th>申请日期</th><th>状态</th><th>当前节点</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>';
 }
 
 // ========== 详情/审批 ==========
 function viewDetail(appId) {
-  const app = allApps.find(a => a.id===appId);
+  var app = null;
+  for (var i = 0; i < allApps.length; i++) {
+    if (allApps[i].id === appId) {
+      app = allApps[i];
+      break;
+    }
+  }
   if (!app) return toast('申请不存在', 'error');
   renderDetailModal(app, false);
 }
 
 function openApprove(appId) {
-  const app = allApps.find(a => a.id===appId);
+  var app = null;
+  for (var i = 0; i < allApps.length; i++) {
+    if (allApps[i].id === appId) {
+      app = allApps[i];
+      break;
+    }
+  }
   if (!app) return toast('申请不存在', 'error');
   renderDetailModal(app, true);
 }
 
 function renderDetailModal(app, isApproving) {
-  const map = {manufacturing_head:0,supply_chain:1,qa_div:2,qa_head:3,quality_head:4};
-  const myNode = map[currentUser.role];
-  const isMyTurn = myNode !== undefined && app.current_node===myNode && app.status!=='已完成';
-  const nodeName = APPROVAL_NODES[app.current_node]?.name || `节点${app.current_node}`;
+  var map = {manufacturing_head:0, supply_chain:1, qa_div:2, qa_head:3, quality_head:4};
+  var myNode = map[currentUser.role];
+  var isMyTurn = myNode !== undefined && app.current_node === myNode && app.status !== '已完成';
+  var nodeName = APPROVAL_NODES[app.current_node] ? APPROVAL_NODES[app.current_node].name : '节点' + app.current_node;
   
-  const opinions = [app.finding_dept_leader_opinion, app.supply_dept_leader_opinion, app.qa_person_in_charge_opinion, app.qa_supervisor_opinion, app.quality_manager_opinion];
-  const signedAts = [app.finding_dept_leader_signed_at, app.supply_dept_leader_signed_at, app.qa_person_in_charge_signed_at, app.qa_supervisor_signed_at, app.quality_manager_signed_at];
+  var opinions = [app.finding_dept_leader_opinion, app.supply_dept_leader_opinion, app.qa_person_in_charge_opinion, app.qa_supervisor_opinion, app.quality_manager_opinion];
+  var signedAts = [app.finding_dept_leader_signed_at, app.supply_dept_leader_signed_at, app.qa_person_in_charge_signed_at, app.qa_supervisor_signed_at, app.quality_manager_signed_at];
   
-  let opinionSection = '';
+  var opinionSection = '';
   if (isApproving && isMyTurn) {
-    opinionSection = `
-      <div class="form-group"><label>${nodeName}处理意见 *</label>
-        <textarea id="modal_opinion" placeholder="请填写您的处理意见" style="min-height:100px"></textarea>
-      </div>
-      <div class="btn-row">
-        <button class="btn-secondary-gray" onclick="closeModal()">取消</button>
-        <button class="btn-success" onclick="doApprove(${app.id})">✅ 确认审批</button>
-      </div>`;
+    opinionSection = '<div class="form-group"><label>' + nodeName + '处理意见 *</label>' +
+      '<textarea id="modal_opinion" placeholder="请填写您的处理意见" style="min-height:100px"></textarea></div>' +
+      '<div class="btn-row">' +
+        '<button class="btn-secondary-gray" onclick="closeModal()">取消</button>' +
+        '<button class="btn-success" onclick="doApprove(' + app.id + ')">✅ 确认审批</button>' +
+      '</div>';
   }
   
-  document.getElementById('modalContent').innerHTML = `
-    <div class="modal-header">
-      <h2>申请详情 - ${app.app_no || app.id}</h2>
-      <button class="modal-close" onclick="closeModal()">×</button>
-    </div>
-    <div class="card"><div class="card-header"><div class="card-title">📋 基本信息</div></div>
-      <div class="info-grid">
-        <div class="info-item"><div class="label">申请单号</div><div class="value">${app.app_no || '-'}</div></div>
-        <div class="info-item"><div class="label">偏差编号</div><div class="value">${app.deviation_no || '生成中'}</div></div>
-        <div class="info-item"><div class="label">申请人</div><div class="value">${app.applicant_name || '-'}</div></div>
-        <div class="info-item"><div class="label">部门</div><div class="value">${app.department || '-'}</div></div>
-        <div class="info-item"><div class="label">申请日期</div><div class="value">${app.created_at ? new Date(app.created_at).toLocaleDateString('zh-CN') : '-'}</div></div>
-        <div class="info-item"><div class="label">状态</div><div class="value"><span class="badge badge-${app.status==='已完成'?'approved':'pending'}">${app.status || '处理中'}</span></div></div>
-      </div>
-    </div>
-    <div class="card"><div class="card-header"><div class="card-title">📦 物料信息</div></div>
-      <div class="info-grid">
-        <div class="info-item"><div class="label">品名</div><div class="value">${app.product_name || '-'}</div></div>
-        <div class="info-item"><div class="label">规格</div><div class="value">${app.spec || '-'}</div></div>
-        <div class="info-item"><div class="label">厂内批号</div><div class="value">${app.factory_batch || '-'}</div></div>
-        <div class="info-item"><div class="label">供应商批号</div><div class="value">${app.supplier_batch || '-'}</div></div>
-        <div class="info-item"><div class="label">供应商</div><div class="value">${app.supplier_name || '-'}</div></div>
-        <div class="info-item"><div class="label">数量</div><div class="value">${app.quantity || '-'}</div></div>
-        <div class="info-item"><div class="label">来源</div><div class="value">${app.source || '-'}</div></div>
-        <div class="info-item"><div class="label">检验报告单号</div><div class="value">${app.inspection_report_no || '-'}</div></div>
-      </div>
-    </div>
-    <div class="card"><div class="card-header"><div class="card-title">⚠️ 异常信息</div></div>
-      <div class="info-grid">
-        <div class="info-item"><div class="label">异常类型</div><div class="value"><span class="abnormal-tag">${app.abnormal_type || '其他异常'}</span></div></div>
-        <div class="info-item"><div class="label">不合格依据</div><div class="value" style="font-size:13px">${app.unqualified_basis || '-'}</div></div>
-      </div>
-      <div style="padding:12px 15px;background:#fff5f5;border-radius:10px;margin-top:10px">
-        <div style="font-size:12px;color:#999;margin-bottom:5px">不合格情况描述</div>
-        <div style="font-size:14px;color:#333;line-height:1.7">${app.abnormal_desc || '-'}</div>
-      </div>
-    </div>
-    <div class="card"><div class="card-header"><div class="card-title">🔄 审批流程</div></div>
-      <div class="timeline">
-        ${APPROVAL_NODES.map((node, i) => {
-          const isDone = i < app.current_node || app.status==='已完成';
-          const isCurrent = i===app.current_node && app.status!=='已完成';
-          const op = opinions[i]; const sigAt = signedAts[i];
-          return `<div class="timeline-item ${isDone?'done':isCurrent?'current':''}">
-            <div class="name">${node.name} ${isCurrent?'(当前)':''} ${isDone?'✓':''}</div>
-            ${op ? `<div class="time">${sigAt ? new Date(sigAt).toLocaleDateString('zh-CN') : ''}</div><div class="opinion">${op}</div>` : isCurrent?'<div class="time" style="color:#667eea">待处理</div>':''}
-          </div>`;
-        }).join('')}
-      </div>
-      ${opinionSection}
-    </div>`;
+  var timelineHtml = '';
+  for (var i = 0; i < APPROVAL_NODES.length; i++) {
+    var node = APPROVAL_NODES[i];
+    var isDone = i < app.current_node || app.status === '已完成';
+    var isCurrent = i === app.current_node && app.status !== '已完成';
+    var op = opinions[i];
+    var sigAt = signedAts[i];
+    var cls = isDone ? 'done' : (isCurrent ? 'current' : '');
+    var extra = op ? '<div class="time">' + (sigAt ? new Date(sigAt).toLocaleDateString('zh-CN') : '') + '</div><div class="opinion">' + op + '</div>' : (isCurrent ? '<div class="time" style="color:#667eea">待处理</div>' : '');
+    timelineHtml += '<div class="timeline-item ' + cls + '"><div class="name">' + node.name + ' ' + (isCurrent ? '(当前)' : '') + ' ' + (isDone ? '✓' : '') + '</div>' + extra + '</div>';
+  }
+  
+  document.getElementById('modalContent').innerHTML = 
+    '<div class="modal-header"><h2>申请详情 - ' + (app.app_no || app.id) + '</h2><button class="modal-close" onclick="closeModal()">×</button></div>' +
+    '<div class="card"><div class="card-header"><div class="card-title">📋 基本信息</div></div>' +
+      '<div class="info-grid">' +
+        '<div class="info-item"><div class="label">申请单号</div><div class="value">' + (app.app_no || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">偏差编号</div><div class="value">' + (app.deviation_no || '生成中') + '</div></div>' +
+        '<div class="info-item"><div class="label">申请人</div><div class="value">' + (app.applicant_name || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">部门</div><div class="value">' + (app.department || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">申请日期</div><div class="value">' + (app.created_at ? new Date(app.created_at).toLocaleDateString('zh-CN') : '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">状态</div><div class="value"><span class="badge badge-' + (app.status === '已完成' ? 'approved' : 'pending') + '">' + (app.status || '处理中') + '</span></div></div>' +
+      '</div></div>' +
+    '<div class="card"><div class="card-header"><div class="card-title">📦 物料信息</div></div>' +
+      '<div class="info-grid">' +
+        '<div class="info-item"><div class="label">品名</div><div class="value">' + (app.product_name || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">规格</div><div class="value">' + (app.spec || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">厂内批号</div><div class="value">' + (app.factory_batch || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">供应商批号</div><div class="value">' + (app.supplier_batch || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">供应商</div><div class="value">' + (app.supplier_name || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">数量</div><div class="value">' + (app.quantity || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">来源</div><div class="value">' + (app.source || '-') + '</div></div>' +
+        '<div class="info-item"><div class="label">检验报告单号</div><div class="value">' + (app.inspection_report_no || '-') + '</div></div>' +
+      '</div></div>' +
+    '<div class="card"><div class="card-header"><div class="card-title">⚠️ 异常信息</div></div>' +
+      '<div class="info-grid">' +
+        '<div class="info-item"><div class="label">异常类型</div><div class="value"><span class="abnormal-tag">' + (app.abnormal_type || '其他异常') + '</span></div></div>' +
+        '<div class="info-item"><div class="label">不合格依据</div><div class="value" style="font-size:13px">' + (app.unqualified_basis || '-') + '</div></div>' +
+      '</div>' +
+      '<div style="padding:12px 15px;background:#fff5f5;border-radius:10px;margin-top:10px">' +
+        '<div style="font-size:12px;color:#999;margin-bottom:5px">不合格情况描述</div>' +
+        '<div style="font-size:14px;color:#333;line-height:1.7">' + (app.abnormal_desc || '-') + '</div>' +
+      '</div></div>' +
+    '<div class="card"><div class="card-header"><div class="card-title">🔄 审批流程</div></div>' +
+      '<div class="timeline">' + timelineHtml + '</div>' +
+      opinionSection + '</div>';
   document.getElementById('modal').classList.add('show');
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
 
 async function doApprove(appId) {
-  const opinion = document.getElementById('modal_opinion').value.trim();
+  var opinion = document.getElementById('modal_opinion').value.trim();
   if (!opinion) return toast('请填写处理意见', 'error');
-  const app = allApps.find(a => a.id===appId);
+  var app = null;
+  for (var i = 0; i < allApps.length; i++) {
+    if (allApps[i].id === appId) {
+      app = allApps[i];
+      break;
+    }
+  }
   if (!app) return toast('申请不存在', 'error');
   
-  const map = {manufacturing_head:0,supply_chain:1,qa_div:2,qa_head:3,quality_head:4};
-  const node = map[currentUser.role];
-  const now = new Date().toISOString();
+  var map = {manufacturing_head:0, supply_chain:1, qa_div:2, qa_head:3, quality_head:4};
+  var node = map[currentUser.role];
+  var now = new Date().toISOString();
   
-  const fieldMap = [
-    'finding_dept_leader_opinion', 'supply_dept_leader_opinion',
-    'qa_person_in_charge_opinion', 'qa_supervisor_opinion', 'quality_manager_opinion'
-  ];
-  const sigFieldMap = [
-    'finding_dept_leader_signed_at', 'supply_dept_leader_signed_at',
-    'qa_person_in_charge_signed_at', 'qa_supervisor_signed_at', 'quality_manager_signed_at'
-  ];
+  var fieldMap = ['finding_dept_leader_opinion', 'supply_dept_leader_opinion', 'qa_person_in_charge_opinion', 'qa_supervisor_opinion', 'quality_manager_opinion'];
+  var sigFieldMap = ['finding_dept_leader_signed_at', 'supply_dept_leader_signed_at', 'qa_person_in_charge_signed_at', 'qa_supervisor_signed_at', 'quality_manager_signed_at'];
   
-  const nextNode = node + 1;
-  const isDone = nextNode >= APPROVAL_NODES.length;
+  var nextNode = node + 1;
+  var isDone = nextNode >= APPROVAL_NODES.length;
+  
+  var updateData = {};
+  updateData[fieldMap[node]] = opinion;
+  updateData[sigFieldMap[node]] = now;
+  updateData.status = isDone ? '已完成' : STATUS_LABELS[nextNode];
+  updateData.current_node = isDone ? node : nextNode;
+  updateData.updated_at = now;
+  if (isDone) updateData.final_disposal_at = now;
   
   try {
-    await supabaseApi(`applications?id=eq.${appId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        [fieldMap[node]]: opinion,
-        [sigFieldMap[node]]: now,
-        status: isDone ? '已完成' : STATUS_LABELS[nextNode],
-        current_node: isDone ? node : nextNode,
-        updated_at: now,
-        final_disposal_at: isDone ? now : null
-      })
-    });
+    var result = await supabase.from('applications').update(updateData).eq('id', appId);
+    if (result.error) throw result.error;
     
     toast('审批提交成功', 'success');
     closeModal();
     await loadApps();
     showPage('pending');
   } catch(e) {
-    toast('审批失败：' + e.message, 'error');
+    toast('审批失败：' + (e.message || JSON.stringify(e)), 'error');
   }
 }
 </script>
