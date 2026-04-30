@@ -173,7 +173,7 @@ function toast(msg, type='info') {
 
 async function loadApps() {
   try {
-    var result = await supabase.from('applications').select('*').order('created_at', { ascending: false });
+    var result = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false });
     if (result.error) throw result.error;
     allApps = result.data || [];
   } catch(e) {
@@ -365,7 +365,7 @@ async function submitApplication() {
       updated_at: now
     };
     
-    var result = await supabase.from('applications').insert([data]).select();
+    var result = await supabaseClient.from('applications').insert([data]).select();
     if (result.error) throw result.error;
     
     toast('申请提交成功！单号：' + app_no, 'success');
@@ -583,7 +583,7 @@ async function doApprove(appId) {
   if (isDone) updateData.final_disposal_at = now;
   
   try {
-    var result = await supabase.from('applications').update(updateData).eq('id', appId);
+    var result = await supabaseClient.from('applications').update(updateData).eq('id', appId);
     if (result.error) throw result.error;
     
     toast('审批提交成功', 'success');
