@@ -1,9 +1,4 @@
-// Supabase 配置 - 注意：supabase客户端已在index.html中声明
-const supabaseUrl = 'https://mcjiaozdiihisthjzqye.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jamlhb3pkaWloaXN0aGp6cXllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjYxOTIsImV4cCI6MjA5MzA0MjE5Mn0.9GRLhtAHlQS_JVnGqLNvJYoBwpr6RHvAKB9sAsiNOv0';
-
-// 初始化 Supabase 客户端
-window.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+// 注意：Supabase客户端已在index.html中初始化，这里不再重复初始化
 
 // 账号列表
 const accounts = [
