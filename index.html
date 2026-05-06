@@ -767,9 +767,136 @@ async function generateFeedbackLetter(appId) {
     var Paragraph = docx.Paragraph;
     var TextRun = docx.TextRun;
     var AlignmentType = docx.AlignmentType;
+    var Header = docx.Header;
+    var ImageRun = docx.ImageRun;
+    var Table = docx.Table;
+    var TableRow = docx.TableRow;
+    var TableCell = docx.TableCell;
+    var WidthType = docx.WidthType;
+    var VerticalAlign = docx.VerticalAlign;
+    
+    // 预加载Logo图片并转为Base64
+    var logoBase64 = "";
+    try {
+      var logoResponse = await fetch("https://cdn.hailuoai.com/mcp/cdn_upload/486564080144343047/389594738339964/1777910443_05dfb53e.jpg");
+      var logoBlob = await logoResponse.blob();
+      var reader = new FileReader();
+      logoBase64 = await new Promise((resolve) => {
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(logoBlob);
+      });
+    } catch(e) {
+      console.log("Logo加载失败，使用文字版", e);
+    }
+    
+    // 创建页眉 - 丽珠集团标准格式（使用1行2列表格实现跨平台兼容）
+    // 左侧：Logo（垂直居中） | 右侧：4行联系方式（垂直居中+左对齐）
+    var header;
+    if (logoBase64) {
+      // 使用表格实现左右两栏布局（跨电脑兼容）
+      header = new Header({
+        children: [
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: "none" },
+              bottom: { style: "none" },
+              left: { style: "none" },
+              right: { style: "none" },
+              insideH: { style: "none" },
+              insideV: { style: "none" }
+            },
+            rows: [
+              new TableRow({
+                children: [
+                  // 左单元格：Logo
+                  new TableCell({
+                    width: { size: 1800, type: WidthType.DXA }, // 固定宽度
+                    verticalAlign: VerticalAlign.CENTER,
+                    margins: { top: 0, bottom: 0 },
+                    children: [
+                      new Paragraph({
+                        spacing: { before: 0, after: 0 },
+                        children: [
+                          new ImageRun({
+                            data: logoBase64.split(',')[1],
+                            transformation: { width: 58, height: 73 },
+                            type: "jpg"
+                          })
+                        ]
+                      })
+                    ]
+                  }),
+                  // 右单元格：4行联系方式
+                  new TableCell({
+                    width: { size: 8000, type: WidthType.DXA }, // 固定宽度
+                    verticalAlign: VerticalAlign.CENTER,
+                    margins: { top: 0, bottom: 0 },
+                    children: [
+                      new Paragraph({
+                        spacing: { before: 0, after: 0 },
+                        children: [
+                          new TextRun({ text: "生产地址：珠海市金湾区创业北路38号", font: "SimSun", size: 21, color: "000000" })
+                        ]
+                      }),
+                      new Paragraph({
+                        spacing: { before: 0, after: 0 },
+                        children: [
+                          new TextRun({ text: "电话号码：0756-8135600/8008301238(免费)", font: "Times New Roman", size: 21, color: "000000" })
+                        ]
+                      }),
+                      new Paragraph({
+                        spacing: { before: 0, after: 0 },
+                        children: [
+                          new TextRun({ text: "传真号码：0756-8870128", font: "Times New Roman", size: 21, color: "000000" })
+                        ]
+                      }),
+                      new Paragraph({
+                        spacing: { before: 0, after: 0 },
+                        children: [
+                          new TextRun({ text: "网　　址：www.livzon.com.cn", font: "Times New Roman", size: 21, color: "000000" })
+                        ]
+                      })
+                    ]
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      });
+    } else {
+      header = new Header({
+        children: [
+          new Paragraph({
+            spacing: { before: 0, after: 0 },
+            border: { bottom: { color: "0066CC", space: 4, style: "single", size: 12 } },
+            children: [
+              new TextRun({ text: "丽珠集团    ", font: "SimSun", size: 21, bold: true, color: "0066CC" }),
+              new TextRun({ text: "Livzon Pharmaceutical Factory", font: "Times New Roman", size: 21, color: "666666" })
+            ]
+          }),
+          new Paragraph({
+            spacing: { before: 0, after: 0 },
+            children: []
+          }),
+          new Paragraph({
+            spacing: { before: 0, after: 0 },
+            children: []
+          }),
+          new Paragraph({
+            spacing: { before: 0, after: 0 },
+            children: []
+          })
+        ]
+      });
+    }
     
     var sections = [{
       properties: {},
+      headers: {
+        default: header
+      },
       children: [
         // 标题
         new Paragraph({
