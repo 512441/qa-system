@@ -1070,8 +1070,10 @@ async function uploadSupplierReply(appId, input) {
   try {
     toast('上传中...', '');
     
-    var filename = 'supplier_reply_' + appId + '_' + Date.now() + '_' + file.name;
-    var result = await supabaseClient.storage.from('supplier-replies').upload(filename, file);
+    // 生成安全文件名（去除中文和特殊字符，只保留扩展名）
+    var ext = file.name.substring(file.name.lastIndexOf('.'));
+    var safeName = 'supplier_reply_' + appId + '_' + Date.now() + ext;
+    var result = await supabaseClient.storage.from('supplier-replies').upload(safeName, file);
     
     if (result.error) throw result.error;
     
