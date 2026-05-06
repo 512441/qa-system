@@ -1077,7 +1077,7 @@ async function uploadSupplierReply(appId, input) {
     
     if (result.error) throw result.error;
     
-    var urlResult = supabaseClient.storage.from('supplier-replies').getPublicUrl(filename);
+    var urlResult = supabaseClient.storage.from('supplier-replies').getPublicUrl(safeName);
     
     await supabaseClient.from('applications').update({
       supplier_reply_url: urlResult.data.publicUrl,
