@@ -1083,7 +1083,10 @@ async function uploadSupplierReply(appId, input) {
       supplier_reply_url: urlResult.data.publicUrl,
       updated_at: new Date().toISOString()
     }).eq('id', appId);
-    
+
+    // 触发 Edge Function 进行 AI 分析 + 飞书通知
+    triggerAnalyzeReply(appId);
+
     await loadApps();
     
     // 刷新模态框
@@ -1137,6 +1140,47 @@ async function removeSupplierReply(appId) {
     toast('删除失败：' + (e.message || JSON.stringify(e)), 'error');
   }
 }
+// ========== 触发 Edge Function 分析 ==========
+async function triggerAnalyzeReply(appId) {
+  try {
+    // 先从本地数据中找到对应的申请
+    var app = null;
+    for (var i = 0; i < allApps.length; i++) {
+      if (allApps[i].id === appId) {
+        app = allApps[i];
+        break;
+      }
+    }
+    if (!app) return;
+
+    // 获取最新的数据（包含刚上传的 supplier_reply_url）
+    var result = await supabaseClient.from('applications').select('*').eq('id', appId).single();
+    if (result.error || !result.data) return;
+    var latestApp = result.data;
+
+    // 构造 payload 并调用 Edge Function
+    var payload = {
+      type: 'UPDATE',
+      record: latestApp,
+      old_record: app
+    };
+
+    var efResponse = await fetch('https://mcjiaozdiihisthjzqye.supabase.co/functions/v1/analyze-supplier-reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (efResponse.ok) {
+      console.log('[前端] Edge Function 触发成功');
+    } else {
+      console.error('[前端] Edge Function 触发失败:', efResponse.status);
+    }
+  } catch(e) {
+    console.error('[前端] 触发分析失败:', e);
+  }
+}
+
 </script>
 </body>
 </html>
